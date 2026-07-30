@@ -3,12 +3,7 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.title("Find Your Village")
-
-st.subheader("Tell us about your situation and we will help find you support")
-
 ### Helper Functions ###
-
 ## Load in google sheet
 @st.cache_data(ttl=600)
 def load_data():
@@ -23,6 +18,20 @@ def load_data():
     return providers, descriptions
 
 df, desc = load_data()
+
+# Shorten long option labels for display, without touching the sheet.
+LABEL_MAP = {
+    "Parental Support / Home Organization": "Parental Support",
+    "Using and Moving their Body": "Motor Skills",
+}
+REVERSE_MAP = {short: full for full, short in LABEL_MAP.items()}
+
+def short_label(value):
+    return LABEL_MAP.get(value, value)
+
+def full_label(value):
+    return REVERSE_MAP.get(value, value)
+
 
 def options_from(column):
     """Split multi-value cells into individual unique options."""
@@ -39,32 +48,74 @@ desc["service_type"] = desc["service_type"].str.strip()
 df = df.merge(desc, on="service_type", how="left")
 
 ## Questions
-st.header("Build your team")
+st.title("Find Your Village")
+st.caption("FYV helps caregivers build a support system to help their child thrive.")
 
-who = st.pills(
-    "Who are you looking for support for?",
-    options_from("who_needs_help"),
-    selection_mode="multi",
-)
+st.markdown("""
+<style>
+[data-testid="stExpander"] summary p {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
 
-age = st.pills(
-    "How old is your child?",
-    options_from("age_range"),
-    selection_mode="single",
-)
+st.write("")
 
-areas = st.pills(
-    "What are you looking for help with?",
-    options_from("support_areas"),
-    selection_mode="multi",
-)
+with st.expander("Tell us about your situation", expanded=True):
+    col1, col2, col3, col4 = st.columns([2, 1.2, 2, 2])
 
-where = st.pills(
-    "Where do you need support?",
-    options_from("where_support"),
-    selection_mode="multi",
-)
+    with col1:
+        who = st.multiselect(
+            "Who are you looking for support for?",
+            options_from("who_needs_help"),
+        )
+    with col2:
+        age = st.selectbox(
+            "How old is your child?",
+            ["Any"] + options_from("age_range"),
+        )
+        if age == "Any":
+            age = None
+    with col3:
+        areas_display = st.multiselect(
+            "What are you looking for help with?",
+            [short_label(o) for o in options_from("support_areas")],
+        )
+        areas = [full_label(a) for a in areas_display]
+    with col4:
+        where = st.multiselect(
+            "Where do you need support?",
+            options_from("where_support"),
+        )
 
+with st.expander("Specify Payment Preferences", expanded=True):
+    def payment_label(value):
+        return "Insurance" if "insurance" in value.lower() else value
+
+    def payment_full(display):
+        for v in options_from("payment_ops"):
+            if payment_label(v) == display:
+                return v
+        return display
+
+    payment_choices = ["Any"] + sorted({payment_label(v) for v in options_from("payment_ops")})
+    payment_display = st.selectbox("Choose Preferred payment options", payment_choices)
+    payment = None if payment_display == "Any" else payment_full(payment_display)
+
+    wants_diagnosis = None
+    if payment_display == "Insurance":
+        diagnosis_choice = st.selectbox(
+            "Most insurances require a diagnosis:",
+            [
+                "I'd like to get my child a diagnosis",
+                "We're OK not getting a diagnosis",
+            ],
+        )
+        wants_diagnosis = diagnosis_choice.startswith("I'd like")
+
+
+st.write("")  # spacer before results
 def cell_has(cell, picks):
     """True if any of the parent's picks appears in this cell."""
     text = str(cell).lower()
@@ -94,6 +145,29 @@ def score_row(row):
     # passed hard filters — base score of 1 so it still shows
     points = 1
 
+    # hard filter: payment
+    if payment:
+        is_free = "free" in str(row["payment_ops"]).lower()
+
+        if payment == "Direct pay":
+            pass  # show everything, no payment filter
+
+        elif payment == "Insurance":
+            # insurance-accepting OR free
+            accepts_insurance = "no insurance accepted" not in str(row["diagnosis_needed"]).lower()
+            if not (accepts_insurance or is_free):
+                return 0
+
+        elif payment == "Free":
+            if not is_free:
+                return 0
+
+        else:
+            # any other specific payment type: match on payment_ops, but free always passes
+            row_payments = data_chips(row["payment_ops"])
+            if payment not in row_payments and not is_free:
+                return 0
+
     # soft signal: areas add points for sorting (don't exclude)
     if areas:
         row_areas = data_chips(row["support_areas"])
@@ -109,33 +183,35 @@ results = scored[scored["match_score"] > 0].sort_values(
 ).head(10)
 
 
-st.header("Build Your Village")
+CLAY = "#A8433A"
+TEAL = "#3A7D6E"
+
+st.header("Recommended Services")
 
 if results.empty:
     st.write("No matches yet — try picking a few options above.")
 else:
-    # group rows by service_type so shared cells can span
     rows_html = ""
     grouped = results.groupby("service_type", sort=False)
     for service_type, group in grouped:
         n = len(group)
         for i, (_, row) in enumerate(group.iterrows()):
-            website = f'<a href="{row["website"]}">Website</a>' if row.get("website") else ""
-            email = f'<a href="mailto:{row["email_contact"]}">Email</a>' if row.get("email_contact") else ""
+            website = f'<a href="{row["website"]}" style="color:{TEAL};">Website</a>' if row.get("website") else ""
+            email = f'<a href="mailto:{row["email_contact"]}" style="color:{TEAL};">Email</a>' if row.get("email_contact") else ""
             phone = row.get("phone", "")
-            organization = row.get("org", "")
+            name = row.get("org", "")
             rows_html += "<tr>"
-            if i == 0:  # only first row of the group prints the merged cells
-                rows_html += f'<td rowspan="{n}">{service_type}</td>'
+            if i == 0:
+                rows_html += f'<td rowspan="{n}" style="color:{CLAY}; font-weight:600;">{service_type}</td>'
                 rows_html += f'<td rowspan="{n}">{group.iloc[0]["description"]}</td>'
-            rows_html += f"<td>{organization}</td><td>{website}</td><td>{email}</td><td>{phone}</td>"
+            rows_html += f"<td>{name}</td><td>{website}</td><td>{email}</td><td>{phone}</td>"
             rows_html += "</tr>"
 
     table_html = f"""
     <table border="1" style="border-collapse:collapse; width:100%;">
       <thead>
         <tr>
-          <th>Service Type</th><th>Description</th><th>Organization</th>
+          <th>Service Type</th><th>Description</th><th>Name</th>
           <th>Website</th><th>Email</th><th>Phone</th>
         </tr>
       </thead>
