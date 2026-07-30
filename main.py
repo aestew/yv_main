@@ -102,7 +102,7 @@ scored = df.copy()
 scored["match_score"] = scored.apply(score_row, axis=1)
 results = scored[scored["match_score"] > 0].sort_values(
     "match_score", ascending=False
-).head(3)
+).head(10)
 
 
 st.header("Build Your Village")
