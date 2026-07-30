@@ -50,7 +50,7 @@ who = st.pills(
 age = st.pills(
     "How old is your child?",
     options_from("age_range"),
-    selection_mode="multi",
+    selection_mode="single",
 )
 
 areas = st.pills(
@@ -77,25 +77,29 @@ def data_chips(cell):
 
 ## Build Row Score
 def score_row(row):
-    # hard filter: age
+    # hard filters: age, who, where (these exclude)
     if age:
         row_ages = data_chips(row["age_range"])
-        if not any(a in row_ages for a in age):
+        if age not in row_ages:
             return 0
-
-    # hard filter: who
     if who:
         row_who = data_chips(row["who_needs_help"])
         if not any(w in row_who for w in who):
             return 0
-
-    # hard filter: where
     if where:
         row_where = data_chips(row["where_support"])
         if not any(x in row_where for x in where):
             return 0
 
-    return 1
+    # passed hard filters — base score of 1 so it still shows
+    points = 1
+
+    # soft signal: areas add points for sorting (don't exclude)
+    if areas:
+        row_areas = data_chips(row["support_areas"])
+        points += sum(1 for a in areas if a in row_areas)
+
+    return points
 
 # score every provider, keep only those with at least one match, take top 3
 scored = df.copy()
