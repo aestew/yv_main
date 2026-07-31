@@ -48,14 +48,18 @@ desc["service_type"] = desc["service_type"].str.strip()
 df = df.merge(desc, on="service_type", how="left")
 
 ## Questions
-st.title("Find Your Village")
-st.caption("FYV helps caregivers build a support system to help their child thrive.")
-
+col_logo, col_title = st.columns([1, 6], vertical_alignment="center")
+with col_logo:
+    st.image("olive_tree.png", width=110)
+with col_title:
+    st.title("Find Your Village")
+    st.caption("FYV helps caregivers build a support system to help their child thrive.")
 st.markdown("""
 <style>
 [data-testid="stExpander"] summary p {
     font-size: 1.25rem;
     font-weight: 600;
+    color: #B08968;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -63,30 +67,32 @@ st.markdown("""
 st.write("")
 
 with st.expander("Tell us about your situation", expanded=True):
-    col1, col2, col3, col4 = st.columns([2, 1.2, 2, 2])
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        who = st.multiselect(
+        who = st.pills(
             "Who are you looking for support for?",
             options_from("who_needs_help"),
+            selection_mode="multi",
         )
     with col2:
-        age = st.selectbox(
+        age = st.pills(
             "How old is your child?",
-            ["Any"] + options_from("age_range"),
+            options_from("age_range"),
+            selection_mode="single",
         )
-        if age == "Any":
-            age = None
     with col3:
-        areas_display = st.multiselect(
+        areas_display = st.pills(
             "What are you looking for help with?",
             [short_label(o) for o in options_from("support_areas")],
+            selection_mode="multi",
         )
         areas = [full_label(a) for a in areas_display]
     with col4:
-        where = st.multiselect(
+        where = st.pills(
             "Where do you need support?",
             options_from("where_support"),
+            selection_mode="multi",
         )
 
 with st.expander("Specify Payment Preferences", expanded=True):
@@ -191,31 +197,23 @@ st.header("Recommended Services")
 if results.empty:
     st.write("No matches yet — try picking a few options above.")
 else:
-    rows_html = ""
-    grouped = results.groupby("service_type", sort=False)
-    for service_type, group in grouped:
-        n = len(group)
-        for i, (_, row) in enumerate(group.iterrows()):
-            website = f'<a href="{row["website"]}" style="color:{TEAL};">Website</a>' if row.get("website") else ""
-            email = f'<a href="mailto:{row["email_contact"]}" style="color:{TEAL};">Email</a>' if row.get("email_contact") else ""
-            phone = row.get("phone", "")
-            name = row.get("org", "")
-            rows_html += "<tr>"
-            if i == 0:
-                rows_html += f'<td rowspan="{n}" style="color:{CLAY}; font-weight:600;">{service_type}</td>'
-                rows_html += f'<td rowspan="{n}">{group.iloc[0]["description"]}</td>'
-            rows_html += f"<td>{name}</td><td>{website}</td><td>{email}</td><td>{phone}</td>"
-            rows_html += "</tr>"
-
-    table_html = f"""
-    <table border="1" style="border-collapse:collapse; width:100%;">
-      <thead>
-        <tr>
-          <th>Service Type</th><th>Description</th><th>Name</th>
-          <th>Website</th><th>Email</th><th>Phone</th>
-        </tr>
-      </thead>
-      <tbody>{rows_html}</tbody>
-    </table>
-    """
-    st.markdown(table_html, unsafe_allow_html=True)
+    for service_type, group in results.groupby("service_type", sort=False):
+        with st.expander(service_type):
+            st.write(group.iloc[0]["description"])
+            st.divider()
+            for _, row in group.iterrows():
+                c1, c2, c3, c4 = st.columns([3, 1, 2, 2])
+                with c1:
+                    if row.get("website"):
+                        st.markdown(f"**[{row['org']}]({row['website']})**")
+                    else:
+                        st.markdown(f"**{row['org']}**")
+                with c2:
+                    if row.get("email_contact"):
+                        st.markdown(f"[Email](mailto:{row['email_contact']})")
+                with c3:
+                    if row.get("phone"):
+                        st.markdown(str(row["phone"]))
+                with c4:
+                    if row.get("payment_ops"):
+                        st.markdown(str(row["payment_ops"]))
