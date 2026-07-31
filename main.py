@@ -53,7 +53,7 @@ with col_logo:
     st.image("olive_tree.png", width=110)
 with col_title:
     st.title("Find Your Village")
-    st.caption("FYV helps caregivers build a support system to help their child thrive.")
+    st.caption("Build a support system to help your child thrive")
 st.markdown("""
 <style>
 [data-testid="stExpander"] summary p {
@@ -95,7 +95,7 @@ with st.expander("Tell us about your situation", expanded=True):
             selection_mode="multi",
         )
 
-with st.expander("Specify Payment Preferences", expanded=True):
+with st.expander("Specify Payment Preferences", expanded=False):
     def payment_label(value):
         return "Insurance" if "insurance" in value.lower() else value
 
