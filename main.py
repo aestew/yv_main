@@ -54,6 +54,11 @@ with col_logo:
 with col_title:
     st.title("Find Your Village")
     st.caption("Build a support system to help your child thrive")
+    st.info(
+        "This tool helps you explore support options and is not medical, legal, "
+        "or eligibility advice. Please verify details directly with each provider.",
+        icon=":material/info:",
+    )
 st.markdown("""
 <style>
 [data-testid="stExpander"] summary p {
@@ -217,3 +222,18 @@ else:
                 with c4:
                     if row.get("payment_ops"):
                         st.markdown(str(row["payment_ops"]))
+st.write("")  # spacer
+with st.expander("Disclaimer"):
+    st.write(
+        "Find Your Village is an informational tool to help you explore support "
+        "options. It is not medical, legal, or eligibility advice, and it does not "
+        "guarantee services or determine whether your child qualifies for any program. "
+        "Official decisions come from your school district, Regional Center, or the "
+        "individual provider.\n\n"
+        "This tool does not provide medical advice and is not a substitute for care "
+        "from a qualified professional. Always consult a physician or other qualified "
+        "provider before making medical decisions for your child. If you are "
+        "experiencing a medical emergency, call 911 immediately.\n\n"
+        "Listings are provided for convenience and may change; please verify details "
+        "directly with each organization."
+    )
